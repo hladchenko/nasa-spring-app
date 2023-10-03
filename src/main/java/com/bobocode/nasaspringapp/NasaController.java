@@ -4,27 +4,33 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Objects;
+import java.net.URI;
 
-@RestController("/")
+
+@Controller("/")
 public class NasaController {
 
     @Value("${key}")
     private String key;
 
 
+    @Cacheable("picture")
     @GetMapping
-    public JsonNode get(@RequestParam int sol) throws JsonProcessingException {
+
+    public ResponseEntity<byte[]> get(@RequestParam int sol) throws JsonProcessingException {
 
         long max = 0;
-        JsonNode item = null;
+        byte[] item;
+        URI itemSrc = null;
 
         RestTemplate template = new RestTemplate();
 
@@ -34,22 +40,28 @@ public class NasaController {
         JsonNode photos = root.path("photos");
         for (JsonNode node : photos) {
 
-            String source = node.path("img_src").textValue();
+            URI source = URI.create(node.path("img_src").textValue());
+            HttpHeaders headers = template.headForHeaders(source);
 
-            ResponseEntity<String> res = template.getForEntity(source, String.class);
-            long length = res.getHeaders().getContentLength();
-
-            if (res.getStatusCode().is3xxRedirection()) {
-                length = template.headForHeaders(Objects.requireNonNull(res.getHeaders().getLocation())).getContentLength();
+            if (headers.getLocation() != null) {
+                source = headers.getLocation();
+                headers = template.headForHeaders(source);
             }
+
+            long length = headers.getContentLength();
 
             if (length > max) {
                 max = length;
-                item = node;
+                itemSrc = source;
             }
-
         }
 
-        return item;
+        if (itemSrc != null) {
+            item = template.getForObject(itemSrc, byte[].class);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG).body(item);
     }
 }

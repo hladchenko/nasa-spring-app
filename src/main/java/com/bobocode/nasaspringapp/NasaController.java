@@ -64,4 +64,15 @@ public class NasaController {
 
         return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG).body(item);
     }
+
+    @GetMapping("/largest")
+    public void getLargest(@RequestParam int sol) {
+        // TODO: Implement using HTTP Client
+    }
+
+    @GetMapping("/largestImage")
+    public void getLargestImage(@RequestParam int sol) {
+        // TODO: Implement using Web Client
+    }
+
 }
